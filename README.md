@@ -22,8 +22,15 @@ WSL driving a Windows Unity Editor today (Unity CLI 1.0.0, `com.unity.pipeline` 
    unity skill install <agent>
    ```
 
-3. This skill: clone the repository and copy (or link) the `unity-agent-harness/` folder into your agent's skills
-   directory, then start a new agent session.
+3. This skill, for every agent found on the machine (Claude Code, Codex, Cursor, Antigravity and others), with the
+   installer's telemetry off; then start a new agent session:
+
+   ```sh
+   DO_NOT_TRACK=1 npx skills add batihandev/unity-agent-harness -g
+   ```
+
+   `-a <agent>` limits it to one agent; `DO_NOT_TRACK=1 npx skills update` updates it. Without npm, clone the repository
+   and copy (or link) the `unity-agent-harness/` folder into your agent's skills directory:
 
    ```sh
    git clone https://github.com/batihandev/unity-agent-harness.git
