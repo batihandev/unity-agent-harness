@@ -1,85 +1,85 @@
-# Unity MCP Skills Library
+# unity-agent-harness
 
-A documentation-only skill pack for AI agents working inside Unity via the official Unity MCP. No C# plugin, no REST server, no Python client — just markdown that teaches your agent how Unity actually works.
+Run and manage Unity Editor instances for coding agents: the right Editor per project or worktree, hidden Editors, dialogs, and test runs you can trust. Tested from WSL on Windows; macOS is planned.
 
-It contains **skills** (per-system guardrails and routing) and **recipes** (ready-to-run C# `IRunCommand` templates) so the agent can act predictably without wrecking your scene.
+Unity's own CLI and its `unity-cli` skill now cover almost everything else; install that skill alongside this one.
 
-> **Work in progress.** Things may be incomplete or rough around the edges — use with that expectation.
+Looking for the Unity MCP skills pack? It is on the `mcp-final` tag.
 
-**Requires:**
+## Tested setup
 
-- **Unity's `com.unity.ai.assistant` package** with its **Unity MCP Server** enabled in *Project Settings → AI → Unity MCP Server* — the hard dependency that provides `Unity_RunCommand` and the `IRunCommand` contract every recipe targets. Nothing in this pack runs without it.
-- **Unity 6000+ (Unity 6).** Recipes use `FindFirstObjectByType` / `FindObjectsByType`; older versions are not supported.
-- **Per-domain package baselines** listed in each `skills/<domain>/SKILL.md` `## Requirements` block. Domain skills tell the agent how to install missing ones via `Unity_PackageManager_ExecuteAction`.
-
----
+WSL driving a Windows Unity Editor today (Unity CLI 1.0.0, `com.unity.pipeline` 1.0.0). macOS is planned, not yet tested.
 
 ## Install
 
-Clone this repo as a single folder inside your agent's skills directory. The whole repo is the install unit — domain skills depend on shared helpers (`recipes/_shared/`), tool routing (`mcp-tools.md`), and fallback docs (`references/`) that ship together.
+1. Unity CLI 1.0.0 (see Unity's CLI installation instructions), then check it with `unity --version`. From WSL the
+   CLI is the Windows one and exists only as `unity.exe`: use `unity.exe` wherever `unity` appears below, or
+   `alias unity=unity.exe`. The helpers find the CLI themselves; `--cli PATH` points them at another one.
+2. Unity's `unity-cli` skill, in the environment where your agent runs:
 
-### Claude Code
+   ```sh
+   unity skill install --list
+   unity skill install <agent>
+   ```
 
-```bash
-git clone https://github.com/batihandev/unity-mcp-skills.git ~/.claude/skills/unity-mcp-skills
+3. This skill: clone the repository and copy (or link) the `unity-agent-harness/` folder into your agent's skills
+   directory, then start a new agent session.
+
+   ```sh
+   git clone https://github.com/batihandev/unity-agent-harness.git
+   ```
+
+4. In the Unity project, `com.unity.pipeline` 1.0.0 in `Packages/manifest.json`.
+
+Python 3.10+ is needed for the helpers; they use no extra packages.
+
+## Use
+
+Ask the agent to use `unity-agent-harness` with your project. The helpers it runs, from the Unity project folder, with the
+path to the script (`SKILLS` is the skills directory you copied the folder into):
+
+```sh
+SKILLS=~/.claude/skills   # wherever unity-agent-harness/ was copied
+cd /path/to/MyUnityProject
+python3 $SKILLS/unity-agent-harness/scripts/unity_session.py open --hidden --project "$PWD"   # start the Editor off the owner's screen
+python3 $SKILLS/unity-agent-harness/scripts/unity_session.py ready --project "$PWD"    # wait for the exact Editor to answer; it must already run (open starts it)
+python3 $SKILLS/unity-agent-harness/scripts/unity_workflow.py compile --project "$PWD" --source Assets/Scripts/Player.cs
+python3 $SKILLS/unity-agent-harness/scripts/unity_workflow.py test --project "$PWD" --route connected \
+  --test-class Ns.MyTests --assembly MyGame.Tests --output /tmp/tests.json
+python3 $SKILLS/unity-agent-harness/scripts/unity_probe.py --project "$PWD" --source AgentScripts/Probe.cs \
+  --entry Probe.Run --completion-text "PROBE_DONE" --output /tmp/probe.json
+python3 $SKILLS/unity-agent-harness/scripts/unity_worktree.py create wt1               # a worktree with its own Editor
 ```
 
-### Codex
+`--output` names a new report file (an existing one is refused). A test run needs `--test-class`, `--test-name` or
+`--assembly`; `--source` adds files that decide whether a run is fresh.
 
-```bash
-git clone https://github.com/batihandev/unity-mcp-skills.git ~/.codex/skills/unity-mcp-skills
+- `unity_session.py open` starts the project's Editor on the visible desktop (it is normally the owner's), and
+  `open --hidden` on the hidden desktop, so an agent can work without taking the screen. `ready` never opens an Editor.
+- The `--assembly` name is the test project's `.asmdef` name. To see what a selection resolves to, run
+  `unity_workflow.py test-plan --project "$PWD" --assembly MyGame.Tests --output /tmp/plan.json` (its `expectedTests` lists them).
+- `compile --source` takes the files whose change you care about (repeat it, or use `--sources-file`). `"compiled": false`
+  with `noCompilationReason: up-to-date` means nothing needed compiling: success, not a skipped check.
+
+Worktrees are set up by `unity-worktrees.json` at the project root:
+
+```json
+{"prefix": "MyGame", "base_port": 7950, "names": ["wt1", "wt2"], "seed_paths": ["Captures"], "desktop": "UnityCliWorktrees"}
 ```
 
-### Antigravity / Gemini CLI
+`seed_paths` and `desktop` are optional. `unity_worktree.py` also has `open`, `list`, `close`, `remove`, `dialogs` and
+`press`. Commit the project's `.meta` files and ignore `Library/`, `Temp/`, `Logs/`, `UserSettings/` and `obj/` (a
+standard Unity `.gitignore`); a fresh repo has no `.meta` files until Unity first opens it, so open it once and commit them. Otherwise Unity's new files in a worktree are untracked and `remove` needs `--force`. Details are in [`unity-agent-harness/SKILL.md`](unity-agent-harness/SKILL.md) and
+[`unity-agent-harness/references/domains/`](unity-agent-harness/references/domains/).
 
-```bash
-git clone https://github.com/batihandev/unity-mcp-skills.git ~/.gemini/antigravity/skills/unity-mcp-skills
-```
+## Tested setup
 
-### Symlink alternative (for hacking on the library)
+Unity CLI 1.0.0, `com.unity.pipeline` 1.0.0, Unity Editor 6000.6.2f1, WSL driving Windows Editors.
 
-```bash
-git clone https://github.com/batihandev/unity-mcp-skills.git ~/src/unity-mcp-skills
-ln -s ~/src/unity-mcp-skills ~/.claude/skills/unity-mcp-skills
-```
+Untested elsewhere. Worktree handling and dialog detection are WSL to Windows only: they call `wslpath`, `cmd.exe`,
+`powershell.exe` and `robocopy`, and hidden desktops are Windows-only. Only the strict test verdicts and session handling
+may work with a native macOS, Linux or Windows setup.
 
-## Update
+## License
 
-```bash
-cd <your-skills-dir>/unity-mcp-skills && git pull
-```
-
-## Uninstall
-
-```bash
-rm -rf <your-skills-dir>/unity-mcp-skills
-```
-
----
-
-## Prerequisites
-
-- A Unity MCP-compatible server running in your Unity Editor; the Editor must be open during use.
-- An AI agent that can read local files and execute MCP tools (e.g. `Unity_RunCommand`).
-
-## How discovery works
-
-Only the top-level `SKILL.md` is registered with your agent — under the name `unity-mcp-skills`. That skill routes to domain-specific skills under `skills/<domain>/SKILL.md` internally. You will **not** see `unity-scene`, `unity-physics`, etc. as separate skills in your agent — they are loaded on demand by the library.
-
-## What's in here
-
-- **`SKILL.md`** — the discoverable entry point; routes to the right domain.
-- **`skills/<domain>/`** — per-system guidance (UI, Physics, Animation, …) telling the agent when and how to approach a task.
-- **`recipes/<domain>/`** — C# `IRunCommand` templates the agent fills in and runs; designed to support Editor Undo/Redo.
-- **`recipes/_shared/`** — cross-domain C# helpers embedded by recipes.
-- **`tooling/<domain>/`** — install-once Editor script templates installed via `Unity_CreateScript`; persistent project tools (menu items, custom windows), no compile/run gate.
-- **`references/`** — offline reference dumps used as a tertiary fallback when skills and recipes lack detail.
-- **`mcp-tools.md`** — routing matrix for native MCP tools vs `Unity_RunCommand`.
-
-## Format
-
-Skills follow the [superpowers](https://github.com/obra/superpowers) skill format.
-
-## Credits
-
-Skill library structure and data originally curated by [Besty0728](https://github.com/Besty0728/Unity-Skills).
+[MIT License](LICENSE).
